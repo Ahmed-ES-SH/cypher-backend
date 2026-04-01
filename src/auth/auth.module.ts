@@ -11,6 +11,10 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { MailModule } from 'src/mail/mail.module';
 
+import { AuthGuard } from './guards/auth.guard';
+import { BlackList } from './schema/blacklisk-tokens.schema';
+import { AuthPublicController } from './auth.public.controller';
+
 // JWT Options
 function ReturnJWTOptions(config: ConfigService) {
   return {
@@ -33,15 +37,15 @@ const JWT_OPTIONS = {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, BlackList]),
     JwtModule.registerAsync(JWT_OPTIONS),
     MailModule,
     ConfigModule,
     UserModule,
     PassportModule,
   ],
-  controllers: [AuthController],
-  providers: [AuthService, GoogleStrategy, JwtStrategy],
+  controllers: [AuthController, AuthPublicController],
+  providers: [AuthService, GoogleStrategy, JwtStrategy, AuthGuard],
   exports: [AuthService],
 })
 export class AuthModule {}

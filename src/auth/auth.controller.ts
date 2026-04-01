@@ -2,23 +2,19 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Post,
-  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { User } from 'src/user/schema/user.schema';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
-import { LoginDto } from './dto/login.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { sendResetPasswordDTO } from './dto/send-rest-password.dto';
-import { verifyRestTokenDTO } from './dto/verify-rest-password-token.dto';
-
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import { logoutDTO } from './dto/logout.dto';
+import { GetUser } from './decorators/current-user.decorator';
 
 /**
  * Controller responsible for handling authentication-related requests.
@@ -29,12 +25,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * Authenticates a user and returns a JWT token.
-   * @param dto - Login credentials (email and password).
+   * Logs out the current user by adding their token to the blacklist.
+   * @param dto - Contains the token and user ID to be blacklisted.
    */
-  @Post('login')
-  normalLogin(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  logout(@Body() dto: logoutDTO, @GetUser() user: User) {
+    return this.authService.logout(dto, user.id.toString());
   }
 
   /**
@@ -44,61 +42,6 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('current-user')
   getProfile(@Req() req: Response & { user: User }) {
-    return req.user;
-  }
-
-  /**
-   * Verifies user email via a unique token.
-   * @param token - The verification token sent to the user's email.
-   */
-  @Post('verify-email')
-  verifyEmail(@Query('token') token: string) {
-    return this.authService.verifyEmail(token);
-  }
-
-  /**
-   * Sends a password reset link to the user's registered email.
-   */
-  @Post('rest-password/send')
-  @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 3, ttl: 900000 } })
-  async sendRestPassword(@Body() dto: sendResetPasswordDTO) {
-    return this.authService.sendRestPassword(dto);
-  }
-
-  /**
-   * Validates the password reset token before allowing password change.
-   */
-  @Post('rest-password/verify')
-  @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 5, ttl: 900000 } })
-  async verifyRestPasswordToken(@Body() dto: verifyRestTokenDTO) {
-    return this.authService.verifyRestToken(dto);
-  }
-
-  /**
-   * Resets the user's password using the verified token.
-   */
-  @Post('rest-password')
-  @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 5, ttl: 3600000 } })
-  async RestPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.restPassword(dto);
-  }
-
-  /**
-   * Initiates the Google OAuth2 login flow.
-   */
-  @Get('google')
-  @UseGuards(AuthGuard('google'))
-  async googleAuth() {}
-
-  /**
-   * Handles the callback from Google OAuth2.
-   */
-  @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
-  googleAuthRedirect(@Req() req: Request) {
     return req.user;
   }
 }

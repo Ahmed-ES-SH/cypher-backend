@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Injectable,
   RequestTimeoutException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { LoginDto } from './dto/login.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,6 +18,8 @@ import { MailService } from 'src/mail/mail.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { verifyRestTokenDTO } from './dto/verify-rest-password-token.dto';
 import { sendResetPasswordDTO } from './dto/send-rest-password.dto';
+import { BlackList } from './schema/blacklisk-tokens.schema';
+import { logoutDTO } from './dto/logout.dto';
 
 @Injectable()
 export class AuthService {
@@ -24,15 +27,20 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly mailService: MailService,
     private readonly jwtService: JwtService,
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(BlackList)
+    private readonly blackListRepo: Repository<BlackList>,
   ) {}
 
-  // login
+  ////////////////////////////////////////////////////////////////////////////////////////
+  /////////// normal auth methods - login, logout, verify email, reset password
+  ////////////////////////////////////////////////////////////////////////////////////////
 
   async login(dto: LoginDto) {
     const user = await this.userRepo.findOne({
       where: { email: dto.email },
-      select: ['id', 'email', 'role', 'password', 'isEmailVerified'],
+      select: ['id', 'email', 'role', 'password', 'isEmailVerified', 'avatar'],
     });
 
     if (!user) throw new BadRequestException('Invalid email or password');
@@ -52,7 +60,7 @@ export class AuthService {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...userWithoutPassword } = user;
 
-    return { userWithoutPassword, access_token: token };
+    return { user: userWithoutPassword, access_token: token };
   }
 
   async sendRestPassword(dto: sendResetPasswordDTO) {
@@ -161,13 +169,30 @@ export class AuthService {
     return { message: 'Email verified successfully' };
   }
 
-  // validate google user
+  async logout(dto: logoutDTO, userId: string) {
+    const { token } = dto;
+    await this.blackListRepo.save({ token, userId });
+    return { message: 'User logged out successfully' };
+  }
+
+  async isTokenBlacklisted(token: string) {
+    const isTokenBlacklisted = await this.blackListRepo.findOne({
+      where: { token },
+    });
+    return isTokenBlacklisted;
+  }
+
+  /////////////////////////////////////////////////////////////////
+  /////////// validate google user
+  /////////////////////////////////////////////////////////////////
   async validateGoogleUser({
     googleId,
     email,
     name,
     avatar,
   }: validateGoogleUserType) {
+    if (!email) throw new UnauthorizedException('No email from Google');
+
     let user = await this.userRepo.findOne({
       where: { googleId: googleId },
     });
@@ -178,6 +203,7 @@ export class AuthService {
         user.googleId = googleId;
         user.avatar = avatar;
         user.name = name;
+        user.isEmailVerified = true;
         user = await this.userRepo.save(user);
       } else {
         user = await this.userRepo.save({
@@ -185,6 +211,7 @@ export class AuthService {
           googleId,
           name,
           avatar,
+          isEmailVerified: true,
         });
       }
     }
@@ -192,8 +219,15 @@ export class AuthService {
     const payload = { id: user?.id, email: user?.email, role: user?.role };
     const access_token = await this.jwtService.signAsync(payload);
 
+    console.log('Google User Email:', email);
+    console.log('Database Found User ID:', user?.id);
+
     return { access_token, user };
   }
+
+  /////////////////////////////////////////////////////////////////
+  /////////// private methods
+  /////////////////////////////////////////////////////////////////
 
   private async addVerificationToken(userId: number, token: string) {
     const expiry = new Date();

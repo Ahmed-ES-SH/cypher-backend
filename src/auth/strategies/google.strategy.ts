@@ -18,7 +18,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     });
   }
 
-  async validate(
+  validate(
     accessToken: string,
     refreshToken: string,
     profile: {
@@ -28,19 +28,16 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       photos: { value: string }[];
     },
     done: VerifyCallback,
-  ): Promise<void> {
-    const { id, displayName } = profile;
+  ) {
+    const { id, displayName, emails, photos } = profile;
 
-    const email = profile.emails?.[0]?.value;
-    const avatar = profile.photos?.[0]?.value;
-
-    const user = await this.authService.validateGoogleUser({
+    const googleUser = {
       googleId: id,
-      email,
+      email: emails?.[0]?.value,
       name: displayName,
-      avatar,
-    });
+      avatar: photos?.[0]?.value,
+    };
 
-    done(null, user);
+    done(null, googleUser);
   }
 }
