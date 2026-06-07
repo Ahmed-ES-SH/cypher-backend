@@ -17,7 +17,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrderService } from './order.service';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { GetUser } from '../auth/decorators/current-user.decorator';
-import { ListPaginationQueryDto } from '../common/dto/list-pagination-query.dto';
+import { OrderHistoryQueryDto } from './dto/order-history-query.dto';
 
 @ApiTags('Orders')
 @ApiBearerAuth()
@@ -32,12 +32,13 @@ export class OrderController {
   @ApiResponse({ status: 200, type: OrderResponseDto, isArray: true })
   async getOrderHistory(
     @GetUser('id') userId: number,
-    @Query() pagination: ListPaginationQueryDto,
+    @Query() query: OrderHistoryQueryDto,
   ) {
     return this.orderService.getOrderHistory(
       userId.toString(),
-      pagination.page ?? 1,
-      pagination.limit ?? 20,
+      query.page ?? 1,
+      query.limit ?? 20,
+      query.status,
     );
   }
 

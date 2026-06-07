@@ -13,6 +13,7 @@ import {
   CategorySortField,
   CategorySortOrder,
 } from './dto/filter-categories-query.dto';
+import { PublicCategoriesQueryDto } from './dto/public-categories-query.dto';
 import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
 
 describe('CategoriesService', () => {
@@ -411,6 +412,46 @@ describe('CategoriesService', () => {
         order: { order: 'ASC', name: 'ASC' },
       });
       expect(result).toEqual([mockCategory]);
+    });
+  });
+
+  // ── getAllPublicPaginated ─────────────────────────────────────
+
+  describe('getAllPublicPaginated', () => {
+    it('should return paginated categories', async () => {
+      const filters: PublicCategoriesQueryDto = {
+        page: 1,
+        limit: 10,
+        sortBy: CategorySortField.order,
+        sortOrder: CategorySortOrder.ASC,
+      };
+
+      const result = await service.getAllPublicPaginated(filters);
+
+      expect(categoryRepo.createQueryBuilder).toHaveBeenCalledWith('category');
+      expect(result).toEqual({
+        data: [mockCategory],
+        total: 1,
+        totalPages: 1,
+        page: 1,
+        limit: 10,
+      });
+    });
+
+    it('should use whitelisted sort column mapping', async () => {
+      const filters: PublicCategoriesQueryDto = {
+        page: 1,
+        limit: 10,
+        sortBy: CategorySortField.createdAt,
+        sortOrder: CategorySortOrder.DESC,
+      };
+
+      await service.getAllPublicPaginated(filters);
+
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+        'category.created_at',
+        'DESC',
+      );
     });
   });
 

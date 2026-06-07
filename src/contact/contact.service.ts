@@ -136,4 +136,28 @@ export class ContactService {
 
     return { message: 'Contact message deleted successfully' };
   }
+
+  /**
+   * Get contact statistics for admin dashboard
+   */
+  async getStats(): Promise<{
+    total: number;
+    unread: number;
+    read: number;
+    replied: number;
+    unreplied: number;
+  }> {
+    const total = await this.contactMessageRepository.count();
+    const unread = await this.contactMessageRepository.count({
+      where: { isRead: false },
+    });
+    const read = total - unread;
+    const replied = await this.contactMessageRepository
+      .createQueryBuilder('contact')
+      .where('contact.replied_at IS NOT NULL')
+      .getCount();
+    const unreplied = total - replied;
+
+    return { total, unread, read, replied, unreplied };
+  }
 }

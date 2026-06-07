@@ -113,6 +113,15 @@ export class ProductsService {
       minRating,
       tags,
       inStockOnly,
+      isPublished,
+      availabilityStatus,
+      brand,
+      onSale,
+      minDiscount,
+      maxDiscount,
+      minWeight,
+      maxWeight,
+      categoryIds,
       sortBy = ProductSortField.createdAt,
       sortOrder = SortOrder.DESC,
     } = filters;
@@ -127,6 +136,16 @@ export class ProductsService {
     }
 
     // ── Filters ──────────────────────────────
+
+    if (isPublished !== undefined) {
+      qb.andWhere('product.isPublished = :isPublished', { isPublished });
+    }
+
+    if (availabilityStatus) {
+      qb.andWhere('product.availabilityStatus = :availabilityStatus', {
+        availabilityStatus,
+      });
+    }
 
     if (search) {
       qb.andWhere(
@@ -166,6 +185,46 @@ export class ProductsService {
       qb.andWhere('product.stock > 0');
     }
 
+    if (brand) {
+      qb.andWhere('product.brand ILIKE :brand', { brand: `%${brand}%` });
+    }
+
+    if (onSale) {
+      qb.andWhere('product.discountPercentage > 0');
+    }
+
+    if (minDiscount !== undefined) {
+      qb.andWhere('product.discountPercentage >= :minDiscount', {
+        minDiscount,
+      });
+    }
+
+    if (maxDiscount !== undefined) {
+      qb.andWhere('product.discountPercentage <= :maxDiscount', {
+        maxDiscount,
+      });
+    }
+
+    if (minWeight !== undefined) {
+      qb.andWhere('product.weight >= :minWeight', { minWeight });
+    }
+
+    if (maxWeight !== undefined) {
+      qb.andWhere('product.weight <= :maxWeight', { maxWeight });
+    }
+
+    if (categoryIds) {
+      const ids = categoryIds
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (ids.length > 0) {
+        qb.andWhere('product.categoryId IN (:...categoryIds)', {
+          categoryIds: ids,
+        });
+      }
+    }
+
     // ── Sort (whitelisted — prevents SQL injection) ──
 
     const orderByColumn =
@@ -192,6 +251,75 @@ export class ProductsService {
     const [data, total] = await qb.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
     return { data, total, page, limit, totalPages };
+  }
+
+  // ─────────────────────────────────────────────
+  // Stats
+  // ─────────────────────────────────────────────
+
+  /**
+   * Get product statistics for admin dashboard
+   */
+  async getStats(): Promise<{
+    total: number;
+    published: number;
+    drafts: number;
+    inStock: number;
+    outOfStock: number;
+    lowStock: number;
+    totalInventory: number;
+    averagePrice: number;
+    totalCategories: number;
+  }> {
+    const [
+      total,
+      published,
+      drafts,
+      inStock,
+      outOfStock,
+      lowStock,
+      inventoryResult,
+      priceResult,
+      categoryResult,
+    ] = await Promise.all([
+      this.productRepository.count(),
+      this.productRepository.count({ where: { isPublished: true } }),
+      this.productRepository.count({ where: { isPublished: false } }),
+      this.productRepository.count({
+        where: { availabilityStatus: 'In Stock' },
+      }),
+      this.productRepository.count({
+        where: { availabilityStatus: 'Out of Stock' },
+      }),
+      this.productRepository.count({
+        where: { availabilityStatus: 'Low Stock' },
+      }),
+      this.productRepository
+        .createQueryBuilder('product')
+        .select('SUM(product.stock)', 'total')
+        .getRawOne(),
+      this.productRepository
+        .createQueryBuilder('product')
+        .select('AVG(product.price)', 'average')
+        .getRawOne(),
+      this.productRepository
+        .createQueryBuilder('product')
+        .select('COUNT(DISTINCT product.categoryId)', 'count')
+        .where('product.categoryId IS NOT NULL')
+        .getRawOne(),
+    ]);
+
+    return {
+      total,
+      published,
+      drafts,
+      inStock,
+      outOfStock,
+      lowStock,
+      totalInventory: parseInt(inventoryResult?.total ?? '0', 10) || 0,
+      averagePrice: parseFloat(priceResult?.average ?? '0') || 0,
+      totalCategories: parseInt(categoryResult?.count ?? '0', 10) || 0,
+    };
   }
 
   // ─────────────────────────────────────────────
@@ -387,6 +515,128 @@ export class ProductsService {
   // ─────────────────────────────────────────────
   // Public catalog
   // ─────────────────────────────────────────────
+
+  /**
+   * Get available filter options for the public catalog sidebar.
+   * Returns aggregated metadata (brands, price range, categories, tags, etc.)
+   * so the frontend can build dynamic filter controls.
+   */
+  async getFilterOptions(): Promise<{
+    brands: string[];
+    categories: {
+      id: string;
+      name: string;
+      slug: string;
+      productCount: number;
+    }[];
+    priceRange: { min: number; max: number };
+    discountRange: { min: number; max: number };
+    weightRange: { min: number | null; max: number | null };
+    ratingRange: { min: number; max: number };
+    tags: string[];
+    availabilityStatuses: string[];
+  }> {
+    const publishedQb = this.productRepository
+      .createQueryBuilder('product')
+      .where('product.isPublished = :isPublished', { isPublished: true });
+
+    const [
+      brands,
+      categoriesWithCounts,
+      priceAgg,
+      discountAgg,
+      weightAgg,
+      ratingAgg,
+      tagsResult,
+      statusesResult,
+    ] = await Promise.all([
+      publishedQb
+        .clone()
+        .select('DISTINCT product.brand')
+        .andWhere('product.brand IS NOT NULL')
+        .orderBy('product.brand', 'ASC')
+        .getRawMany<{ brand: string }>(),
+      this.productRepository
+        .createQueryBuilder('product')
+        .select([
+          'category.id',
+          'category.name',
+          'category.slug',
+          'COUNT(product.id) as product_count',
+        ])
+        .leftJoin('product.category', 'category')
+        .where('product.isPublished = :isPublished', { isPublished: true })
+        .andWhere('product.categoryId IS NOT NULL')
+        .groupBy('category.id')
+        .addGroupBy('category.name')
+        .addGroupBy('category.slug')
+        .orderBy('product_count', 'DESC')
+        .getRawMany<{
+          category_id: string;
+          category_name: string;
+          category_slug: string;
+          product_count: number;
+        }>(),
+      publishedQb
+        .clone()
+        .select('MIN(product.price)', 'min')
+        .addSelect('MAX(product.price)', 'max')
+        .getRawOne<{ min: number; max: number }>(),
+      publishedQb
+        .clone()
+        .select('MIN(product.discountPercentage)', 'min')
+        .addSelect('MAX(product.discountPercentage)', 'max')
+        .getRawOne<{ min: number; max: number }>(),
+      publishedQb
+        .clone()
+        .select('MIN(product.weight)', 'min')
+        .addSelect('MAX(product.weight)', 'max')
+        .getRawOne<{ min: number | null; max: number | null }>(),
+      publishedQb
+        .clone()
+        .select('MIN(product.rating)', 'min')
+        .addSelect('MAX(product.rating)', 'max')
+        .getRawOne<{ min: number; max: number }>(),
+      publishedQb
+        .clone()
+        .select('DISTINCT UNNEST(product.tags)', 'tag')
+        .orderBy('tag', 'ASC')
+        .getRawMany<{ tag: string }>(),
+      publishedQb
+        .clone()
+        .select('DISTINCT product.availabilityStatus', 'status')
+        .orderBy('product.availabilityStatus', 'ASC')
+        .getRawMany<{ status: string }>(),
+    ]);
+
+    return {
+      brands: brands.map((r) => r.brand),
+      categories: categoriesWithCounts.map((r) => ({
+        id: r.category_id,
+        name: r.category_name,
+        slug: r.category_slug,
+        productCount: Number(r.product_count),
+      })),
+      priceRange: {
+        min: Number(priceAgg?.min ?? 0),
+        max: Number(priceAgg?.max ?? 0),
+      },
+      discountRange: {
+        min: Number(discountAgg?.min ?? 0),
+        max: Number(discountAgg?.max ?? 0),
+      },
+      weightRange: {
+        min: weightAgg?.min != null ? Number(weightAgg.min) : null,
+        max: weightAgg?.max != null ? Number(weightAgg.max) : null,
+      },
+      ratingRange: {
+        min: Number(ratingAgg?.min ?? 0),
+        max: Number(ratingAgg?.max ?? 0),
+      },
+      tags: tagsResult.map((r) => r.tag),
+      availabilityStatuses: statusesResult.map((r) => r.status),
+    };
+  }
 
   /**
    * Get public product catalog (only published products)

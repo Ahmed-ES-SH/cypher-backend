@@ -19,9 +19,14 @@ export class OrderRepository {
     userId: string,
     skip: number,
     take: number,
+    status?: string,
   ): Promise<[Order[], number]> {
+    const where: Record<string, unknown> = { userId };
+    if (status) {
+      where.status = status;
+    }
     return this.orderRepo.findAndCount({
-      where: { userId },
+      where,
       relations: ['items'],
       order: { createdAt: 'DESC' },
       skip,

@@ -3,125 +3,28 @@ import { databaseConfig } from '../../config/database.config';
 import { seedCategories } from './seed-categories';
 import { seedProducts } from './seed-products';
 import { seedArticles } from './seed-articles';
-
-async function resetTables(dataSource: DataSource): Promise<void> {
-  console.log('📦 Dropping products and categories tables...');
-
-  try {
-    await dataSource.query('DROP TABLE IF EXISTS products CASCADE');
-    await dataSource.query('DROP TABLE IF EXISTS categories CASCADE');
-    console.log('✅ Tables dropped successfully');
-  } catch (error) {
-    console.error('❌ Failed to drop tables:', error);
-    throw error;
-  }
-}
-
-async function recreateTables(dataSource: DataSource): Promise<void> {
-  console.log('🔄 Recreating tables from migrations...');
-
-  try {
-    await dataSource.query(`
-      CREATE TABLE "categories" (
-        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-        "name" character varying(100) NOT NULL,
-        "slug" character varying(120) NOT NULL,
-        "description" text,
-        "color" character varying(7),
-        "icon" character varying(50),
-        "order" integer NOT NULL DEFAULT '0',
-        "created_at" TIMESTAMP NOT NULL DEFAULT now(),
-        "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
-        CONSTRAINT "PK_categories_id" PRIMARY KEY ("id")
-      )
-    `);
-
-    await dataSource.query(
-      `CREATE UNIQUE INDEX "idx_categories_slug_unique" ON "categories" ("slug")`,
-    );
-    await dataSource.query(
-      `CREATE UNIQUE INDEX "idx_categories_name_unique" ON "categories" ("name")`,
-    );
-    await dataSource.query(
-      `CREATE INDEX "idx_categories_order" ON "categories" ("order")`,
-    );
-
-    await dataSource.query(`
-      CREATE TABLE "products" (
-        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-        "title" character varying(300) NOT NULL,
-        "slug" character varying(350) NOT NULL,
-        "description" text NOT NULL,
-        "shortDescription" text,
-        "price" numeric(10,2) NOT NULL,
-        "discount_percentage" numeric(5,2) NOT NULL DEFAULT '0',
-        "discounted_price" numeric(10,2) NOT NULL DEFAULT '0',
-        "stock" integer NOT NULL DEFAULT '0',
-        "sku" character varying(50) NOT NULL,
-        "minimum_order_quantity" integer NOT NULL DEFAULT '1',
-        "availability_status" character varying(50) NOT NULL DEFAULT 'In Stock',
-        "category_id" uuid,
-        "tags" text array NOT NULL DEFAULT '{}',
-        "brand" character varying(100),
-        "weight" numeric(8,2),
-        "dimensions" jsonb,
-        "images" text array NOT NULL DEFAULT '{}',
-        "thumbnail" character varying,
-        "warranty_information" text,
-        "shipping_information" text,
-        "return_policy" text,
-        "reviews" jsonb NOT NULL DEFAULT '[]',
-        "rating" numeric(3,2) NOT NULL DEFAULT '0',
-        "barcode" character varying,
-        "qr_code" character varying,
-        "is_published" boolean NOT NULL DEFAULT false,
-        "created_at" TIMESTAMP NOT NULL DEFAULT now(),
-        "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
-        "deleted_at" TIMESTAMP DEFAULT NULL,
-        CONSTRAINT "PK_products_id" PRIMARY KEY ("id")
-      )
-    `);
-
-    await dataSource.query(
-      `CREATE UNIQUE INDEX "idx_products_slug" ON "products" ("slug")`,
-    );
-    await dataSource.query(
-      `CREATE UNIQUE INDEX "idx_products_sku" ON "products" ("sku")`,
-    );
-    await dataSource.query(
-      `CREATE INDEX "idx_products_category_id" ON "products" ("category_id")`,
-    );
-    await dataSource.query(
-      `CREATE INDEX "idx_products_is_published" ON "products" ("is_published")`,
-    );
-    await dataSource.query(
-      `CREATE INDEX "idx_products_price" ON "products" ("price")`,
-    );
-    await dataSource.query(
-      `CREATE INDEX "idx_products_rating" ON "products" ("rating")`,
-    );
-    await dataSource.query(
-      `CREATE INDEX "idx_products_title_description_search" ON "products" ("title", "description")`,
-    );
-
-    await dataSource.query(`
-      ALTER TABLE "products"
-      ADD CONSTRAINT "FK_products_category_id"
-      FOREIGN KEY ("category_id")
-      REFERENCES "categories"("id")
-      ON DELETE SET NULL
-      ON UPDATE NO ACTION
-    `);
-
-    console.log('✅ Tables recreated successfully');
-  } catch (error) {
-    console.error('❌ Failed to recreate tables:', error);
-    throw error;
-  }
-}
+import { seedUsers } from './seed-users';
+import { seedCarts } from './seed-carts';
+import { seedCartItems } from './seed-cart-items';
+import { seedOrders } from './seed-orders';
+import { seedOrderItems } from './seed-order-items';
+import { seedPayments } from './seed-payments';
+import { seedRefunds } from './seed-refunds';
+import { seedCheckoutSessions } from './seed-checkout-sessions';
+import { seedNotifications } from './seed-notifications';
+import { seedNotificationPreferences } from './seed-notification-preferences';
+import { seedContactMessages } from './seed-contact-messages';
+import { seedWebhookEvents } from './seed-webhook-events';
+import { seedOutboxEvents } from './seed-outbox-events';
+import { seedBlacklistTokens } from './seed-blacklist-tokens';
 
 async function main() {
+  const isReset = process.argv.includes('--reset');
+
   console.log('🌱 Starting database seed...\n');
+  console.log(
+    `   Mode: ${isReset ? 'reset (drop & recreate categories/products)' : 'idempotent (safe to re-run)'}`,
+  );
   const startTime = Date.now();
 
   let dataSource: DataSource | null = null;
@@ -132,33 +35,87 @@ async function main() {
     await dataSource.initialize();
     console.log('✅ Database connected\n');
 
-    await resetTables(dataSource);
-    console.log('');
+    if (isReset) {
+      console.log('📦 Resetting categories and products tables...');
+      await dataSource.query('DROP TABLE IF EXISTS cart_items CASCADE');
+      await dataSource.query('DROP TABLE IF EXISTS carts CASCADE');
+      await dataSource.query('DROP TABLE IF EXISTS order_items CASCADE');
+      await dataSource.query('DROP TABLE IF EXISTS orders CASCADE');
+      await dataSource.query('DROP TABLE IF EXISTS refunds CASCADE');
+      await dataSource.query('DROP TABLE IF EXISTS payments CASCADE');
+      await dataSource.query(
+        'DROP TABLE IF EXISTS checkout_session_states CASCADE',
+      );
+      await dataSource.query('DROP TABLE IF EXISTS products CASCADE');
+      await dataSource.query('DROP TABLE IF EXISTS categories CASCADE');
+      console.log('✅ Tables dropped\n');
+    }
 
-    await recreateTables(dataSource);
-    console.log('');
+    const stats: Record<string, { inserted: number; skipped: number }> = {};
 
-    const slugToIdMap = await seedCategories(dataSource);
+    const userStats = await seedUsers(dataSource);
+    stats.users = userStats;
 
-    const productStats = await seedProducts(dataSource, slugToIdMap);
+    const categoryMap = await seedCategories(dataSource);
+    stats.categories = { inserted: categoryMap.size, skipped: 0 };
 
-    const articleStats = await seedArticles(dataSource, slugToIdMap);
+    const productStats = await seedProducts(dataSource, categoryMap);
+    stats.products = productStats;
+
+    const articleStats = await seedArticles(dataSource, categoryMap);
+    stats.articles = articleStats;
+
+    const contactStats = await seedContactMessages(dataSource);
+    stats.contactMessages = contactStats;
+
+    const webhookStats = await seedWebhookEvents(dataSource);
+    stats.webhookEvents = webhookStats;
+
+    const outboxStats = await seedOutboxEvents(dataSource);
+    stats.outboxEvents = outboxStats;
+
+    const cartStats = await seedCarts(dataSource);
+    stats.carts = cartStats;
+
+    const cartItemStats = await seedCartItems(dataSource);
+    stats.cartItems = cartItemStats;
+
+    const orderStats = await seedOrders(dataSource);
+    stats.orders = orderStats;
+
+    const orderItemStats = await seedOrderItems(dataSource);
+    stats.orderItems = orderItemStats;
+
+    const paymentStats = await seedPayments(dataSource);
+    stats.payments = paymentStats;
+
+    const refundStats = await seedRefunds(dataSource);
+    stats.refunds = refundStats;
+
+    const checkoutStats = await seedCheckoutSessions(dataSource);
+    stats.checkoutSessions = checkoutStats;
+
+    const notificationStats = await seedNotifications(dataSource);
+    stats.notifications = notificationStats;
+
+    const prefStats = await seedNotificationPreferences(dataSource);
+    stats.notificationPreferences = prefStats;
+
+    const blacklistStats = await seedBlacklistTokens(dataSource);
+    stats.blacklistTokens = blacklistStats;
 
     await dataSource.destroy();
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-    console.log('🎉 Database seeding completed successfully!');
-    console.log(
-      `   Categories: ${Object.keys(slugToIdMap).length > 0 ? slugToIdMap.size : 'see above'}`,
-    );
-    console.log(`   Products inserted: ${productStats.inserted}`);
-    console.log(`   Products skipped: ${productStats.skipped}`);
-    console.log(`   Products invalid: ${productStats.invalid}`);
-    console.log(`   Articles inserted: ${articleStats.inserted}`);
-    console.log(`   Articles skipped: ${articleStats.skipped}`);
-    console.log(`   Articles invalid: ${articleStats.invalid}`);
-    console.log(`   Total time: ${duration}s\n`);
+    console.log('🎉 Database seeding completed successfully!\n');
+    console.log('   Summary:');
+    for (const [table, s] of Object.entries(stats)) {
+      console.log(
+        `   - ${table}: +${s.inserted} inserted, ${s.skipped} skipped`,
+      );
+    }
+    console.log(`\n   Total time: ${duration}s\n`);
 
     process.exit(0);
   } catch (error) {

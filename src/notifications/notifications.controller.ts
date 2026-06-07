@@ -55,6 +55,19 @@ export class NotificationsController {
     return { success: true };
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get notification statistics' })
+  @ApiResponse({ status: 200, description: 'Notification statistics' })
+  async getStats(): Promise<{
+    total: number;
+    unread: number;
+    read: number;
+    deleted: number;
+    byType: Record<string, number>;
+  }> {
+    return this.notificationsService.getStats();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all notifications (paginated)' })
   @ApiResponse({ status: 200, description: 'Returns paginated notifications' })

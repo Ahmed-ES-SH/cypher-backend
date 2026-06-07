@@ -18,7 +18,7 @@ import { PaymentsService } from './payments.service';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
 import { GetUser } from '../auth/decorators/current-user.decorator';
-import { ListPaginationQueryDto } from '../common/dto/list-pagination-query.dto';
+import { PaymentHistoryQueryDto } from './dto/payment-history-query.dto';
 import { Payment } from './schema/payment.schema';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -82,12 +82,13 @@ export class PaymentsController {
   @Get('history')
   async getPaymentHistory(
     @GetUser('id') userId: string,
-    @Query() pagination: ListPaginationQueryDto,
+    @Query() query: PaymentHistoryQueryDto,
   ): Promise<PaymentHistoryResponse> {
     return this.paymentsService.getPaymentHistory(
       userId,
-      pagination.page ?? 1,
-      pagination.limit ?? 20,
+      query.page ?? 1,
+      query.limit ?? 20,
+      query.status,
     );
   }
 }

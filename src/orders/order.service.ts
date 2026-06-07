@@ -6,6 +6,8 @@ import { Order } from './schema/order.schema';
 import { OrderItem } from './schema/order-item.schema';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { CartResponseDto } from '../cart/dto/cart-response.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class OrderService {
@@ -14,6 +16,10 @@ export class OrderService {
   constructor(
     private orderRepository: OrderRepository,
     private dataSource: DataSource,
+    @InjectRepository(Order)
+    private readonly orderRepo: Repository<Order>,
+    @InjectRepository(OrderItem)
+    private readonly orderItemRepo: Repository<OrderItem>,
   ) {}
 
   // ── Transaction helper to eliminate duplicated try/catch/finally ──
@@ -223,6 +229,7 @@ export class OrderService {
     userId: string,
     page: number = 1,
     limit: number = 20,
+    status?: string,
   ): Promise<{
     data: OrderResponseDto[];
     total: number;
@@ -235,6 +242,7 @@ export class OrderService {
       userId,
       skip,
       limit,
+      status,
     );
 
     const data = orders.map((order) => this.mapToResponseDto(order));
@@ -262,6 +270,53 @@ export class OrderService {
     }
 
     return this.mapToResponseDto(order);
+  }
+
+  // ── Stats ──
+
+  /**
+   * Get order statistics for admin dashboard
+   */
+  async getStats(): Promise<{
+    total: number;
+    byStatus: Record<string, number>;
+    totalRevenue: number;
+    averageOrderValue: number;
+    totalItemsSold: number;
+  }> {
+    const total = await this.orderRepo.count();
+
+    const statusCounts = await Promise.all(
+      Object.values(OrderStatus).map(async (status) => ({
+        status,
+        count: await this.orderRepo.count({ where: { status } }),
+      })),
+    );
+
+    const byStatus: Record<string, number> = {};
+    for (const { status, count } of statusCounts) {
+      byStatus[status] = count;
+    }
+
+    const revenueResult = await this.orderRepo
+      .createQueryBuilder('order')
+      .select('SUM(order.total_amount)', 'total')
+      .addSelect('AVG(order.total_amount)', 'average')
+      .where('order.status = :status', { status: OrderStatus.PAID })
+      .getRawOne();
+
+    const itemsResult = await this.orderItemRepo
+      .createQueryBuilder('orderItem')
+      .select('SUM(orderItem.quantity)', 'total')
+      .getRawOne();
+
+    return {
+      total,
+      byStatus,
+      totalRevenue: parseInt(revenueResult?.total ?? '0', 10) || 0,
+      averageOrderValue: parseFloat(revenueResult?.average ?? '0') || 0,
+      totalItemsSold: parseInt(itemsResult?.total ?? '0', 10) || 0,
+    };
   }
 
   // ── Mapping ──

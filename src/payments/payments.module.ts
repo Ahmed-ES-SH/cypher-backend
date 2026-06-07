@@ -13,6 +13,7 @@ import { CheckoutSessionState } from './schema/checkout-session-state.schema';
 import { OutboxEvent } from './schema/outbox-event.schema';
 import { Refund } from './schema/refund.schema';
 import { WebhookEvent } from './schema/webhook-event.schema';
+import { PaymentsAdminController } from './payments-admin.controller';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { WebhookEvent } from './schema/webhook-event.schema';
     OrderModule,
     CartModule,
   ],
-  controllers: [PaymentsController],
+  controllers: [PaymentsController, PaymentsAdminController],
   providers: [PaymentsService, PaymentsRepository, StripeProvider],
   exports: [PaymentsService],
 })

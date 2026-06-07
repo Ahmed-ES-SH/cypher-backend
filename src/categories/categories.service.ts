@@ -16,7 +16,9 @@ import {
   CategorySortField,
   CategorySortOrder,
 } from './dto/filter-categories-query.dto';
+import { PublicCategoriesQueryDto } from './dto/public-categories-query.dto';
 import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
+import { PublicAllCategoryDto } from './dto/public-categories-all-list';
 
 export interface CategoryWithCounts extends Category {
   articlesCount: number;
@@ -148,6 +150,44 @@ export class CategoriesService {
     const totalPages = Math.ceil(total / limit);
 
     return { data, total, page, limit, totalPages };
+  }
+
+  /**
+   * Get category statistics for admin dashboard
+   */
+  async getStats(): Promise<{
+    total: number;
+    totalProducts: number;
+    totalArticles: number;
+    emptyCategories: number;
+  }> {
+    const total = await this.categoryRepository.count();
+
+    const productsResult = await this.productRepository
+      .createQueryBuilder('product')
+      .select('COUNT(*)', 'count')
+      .where('product.categoryId IS NOT NULL')
+      .getRawOne();
+
+    const articlesResult = await this.articleRepository
+      .createQueryBuilder('article')
+      .select('COUNT(*)', 'count')
+      .where('article.categoryId IS NOT NULL')
+      .getRawOne();
+
+    const emptyResult = await this.categoryRepository
+      .createQueryBuilder('category')
+      .leftJoin('category.products', 'product')
+      .leftJoin('category.articles', 'article')
+      .where('product.id IS NULL AND article.id IS NULL')
+      .getCount();
+
+    return {
+      total,
+      totalProducts: parseInt(productsResult?.count ?? '0', 10) || 0,
+      totalArticles: parseInt(articlesResult?.count ?? '0', 10) || 0,
+      emptyCategories: emptyResult,
+    };
   }
 
   /**
@@ -289,6 +329,57 @@ export class CategoriesService {
     return this.categoryRepository.find({
       order: { order: 'ASC', name: 'ASC' },
     });
+  }
+
+  /**
+   * Get all categories for public with pagination
+   */
+  async getAllPublicPaginated(filters: PublicCategoriesQueryDto): Promise<{
+    data: Category[];
+    total: number;
+    totalPages: number;
+    page: number;
+    limit: number;
+  }> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+    const { sortBy, sortOrder } = filters;
+
+    const queryBuilder = this.categoryRepository.createQueryBuilder('category');
+
+    const orderByColumn =
+      sortBy != null ? this.sortColumnMap[sortBy] : this.sortColumnMap.order;
+    const orderDirection =
+      sortOrder === CategorySortOrder.DESC ? 'DESC' : 'ASC';
+
+    queryBuilder
+      .orderBy(orderByColumn, orderDirection)
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    const totalPages = Math.ceil(total / limit);
+
+    return { data, total, page, limit, totalPages };
+  }
+
+  async getAllPublicList(): Promise<PublicAllCategoryDto[]> {
+    const data = await this.categoryRepository.find({
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        icon: true,
+      },
+    });
+
+    return data.map((item) => ({
+      id: item.id,
+      name: item.name,
+      color: item.color ?? '',
+      icon: item.icon ?? '',
+    }));
   }
 
   /**

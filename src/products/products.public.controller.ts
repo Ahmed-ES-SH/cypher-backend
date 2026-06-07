@@ -19,6 +19,33 @@ import { Public } from '../auth/decorators/public.decorator';
 export class ProductsPublicController {
   constructor(private readonly productsService: ProductsService) {}
 
+  @Get('filter-options')
+  @ApiOperation({
+    summary: 'Get available filter options for the product catalog sidebar',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Aggregated metadata — brands, categories, price range, tags, etc.',
+  })
+  async getFilterOptions(): Promise<{
+    brands: string[];
+    categories: {
+      id: string;
+      name: string;
+      slug: string;
+      productCount: number;
+    }[];
+    priceRange: { min: number; max: number };
+    discountRange: { min: number; max: number };
+    weightRange: { min: number | null; max: number | null };
+    ratingRange: { min: number; max: number };
+    tags: string[];
+    availabilityStatuses: string[];
+  }> {
+    return this.productsService.getFilterOptions();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get public product catalog' })
   @ApiResponse({

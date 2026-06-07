@@ -74,11 +74,19 @@ export class NotificationsService {
     limit: number;
   }> {
     try {
-      const { page = 1, limit = 20 } = pagination;
+      const { page = 1, limit = 20, isRead, type } = pagination;
       const skip = (page - 1) * limit;
 
+      const where: Record<string, unknown> = { userId, isDeleted: false };
+      if (isRead !== undefined) {
+        where.isRead = isRead;
+      }
+      if (type) {
+        where.type = type;
+      }
+
       const [data, total] = await this.notificationRepository.findAndCount({
-        where: { userId, isDeleted: false },
+        where,
         order: { createdAt: 'DESC' },
         take: limit,
         skip,
@@ -383,11 +391,19 @@ export class NotificationsService {
     limit: number;
   }> {
     try {
-      const { page = 1, limit = 20 } = pagination;
+      const { page = 1, limit = 20, isRead, type } = pagination;
       const skip = (page - 1) * limit;
 
+      const where: Record<string, unknown> = { isDeleted: false };
+      if (isRead !== undefined) {
+        where.isRead = isRead;
+      }
+      if (type) {
+        where.type = type;
+      }
+
       const [data, total] = await this.notificationRepository.findAndCount({
-        where: { isDeleted: false },
+        where,
         order: { createdAt: 'DESC' },
         take: limit,
         skip,
@@ -416,6 +432,56 @@ export class NotificationsService {
         throw new InternalServerErrorException(error.message);
       }
       throw new InternalServerErrorException('Failed to delete notification');
+    }
+  }
+
+  /**
+   * Get notification statistics for admin dashboard
+   */
+  async getStats(): Promise<{
+    total: number;
+    unread: number;
+    read: number;
+    deleted: number;
+    byType: Record<string, number>;
+  }> {
+    try {
+      const total = await this.notificationRepository.count({
+        where: { isDeleted: false },
+      });
+
+      const unread = await this.notificationRepository.count({
+        where: { isRead: false, isDeleted: false },
+      });
+
+      const read = total - unread;
+
+      const deleted = await this.notificationRepository.count({
+        where: { isDeleted: true },
+      });
+
+      const typeCounts = await Promise.all(
+        Object.values(NotificationType).map(async (type) => ({
+          type,
+          count: await this.notificationRepository.count({
+            where: { type, isDeleted: false },
+          }),
+        })),
+      );
+
+      const byType: Record<string, number> = {};
+      for (const { type, count } of typeCounts) {
+        byType[type] = count;
+      }
+
+      return { total, unread, read, deleted, byType };
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new InternalServerErrorException(error.message);
+      }
+      throw new InternalServerErrorException(
+        'Failed to get notification stats',
+      );
     }
   }
 

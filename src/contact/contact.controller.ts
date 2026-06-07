@@ -38,6 +38,19 @@ export class ContactController {
     return this.contactService.findAll(query);
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get contact message statistics' })
+  @ApiResponse({ status: 200, description: 'Contact statistics' })
+  async getStats(): Promise<{
+    total: number;
+    unread: number;
+    read: number;
+    replied: number;
+    unreplied: number;
+  }> {
+    return this.contactService.getStats();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single contact message by ID' })
   @ApiResponse({ status: 200, description: 'Contact message details' })

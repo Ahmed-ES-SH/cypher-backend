@@ -1,24 +1,31 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
+  RequestTimeoutException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, FindOptionsWhere, Repository } from 'typeorm';
+import { ILike, FindOptionsWhere, Repository, Not, IsNull } from 'typeorm';
 import { User } from './schema/user.entity';
 import * as argon2 from 'argon2';
 import { paginate, PaginatedResult } from 'src/helpers/paginate.helper';
 import { FilterOptionsDto } from './dto/filter-options.dto';
 import { UserRoleEnum } from 'src/auth/types/UserRoleEnum';
+import { StatusEnum } from 'src/auth/types/StatusEnum';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly mailService: MailService,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -31,25 +38,74 @@ export class UserService {
     const hashedPassword = await argon2.hash(dto.password);
 
     const user = this.userRepo.create({ ...dto, password: hashedPassword });
-    return this.userRepo.save(user);
+    const savedUser = await this.userRepo.save(user);
+
+    try {
+      const token = await this.mailService.sendVerificationEmail(savedUser);
+
+      const expiry = new Date();
+      expiry.setHours(expiry.getHours() + 1);
+
+      await this.userRepo.update(savedUser.id, {
+        emailVerificationToken: token,
+        emailVerificationTokenExpiry: expiry,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Verification email failed after registration',
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new RequestTimeoutException(
+        'Failed to send verification email. Please try again.',
+      );
+    }
+
+    return savedUser;
   }
 
   async stats(): Promise<{
+    total: number;
     adminsNumber: number;
     verifiedUsersNumber: number;
     unverifiedUsersNumber: number;
+    active: number;
+    inactive: number;
+    banned: number;
+    premium: number;
+    oauthUsers: number;
   }> {
-    const [adminsNumber, verifiedUsersNumber, unverifiedUsersNumber] =
-      await Promise.all([
-        this.userRepo.count({ where: { role: UserRoleEnum.ADMIN } }),
-        this.userRepo.count({ where: { isEmailVerified: true } }),
-        this.userRepo.count({ where: { isEmailVerified: false } }),
-      ]);
-
-    return {
+    const [
+      total,
       adminsNumber,
       verifiedUsersNumber,
       unverifiedUsersNumber,
+      active,
+      inactive,
+      banned,
+      premium,
+      oauthUsers,
+    ] = await Promise.all([
+      this.userRepo.count(),
+      this.userRepo.count({ where: { role: UserRoleEnum.ADMIN } }),
+      this.userRepo.count({ where: { isEmailVerified: true } }),
+      this.userRepo.count({ where: { isEmailVerified: false } }),
+      this.userRepo.count({ where: { status: StatusEnum.ACTIVE } }),
+      this.userRepo.count({ where: { status: StatusEnum.INACTIVE } }),
+      this.userRepo.count({ where: { status: StatusEnum.BANNED } }),
+      this.userRepo.count({ where: { isPremium: true } }),
+      this.userRepo.count({ where: { googleId: Not(IsNull()) } }),
+    ]);
+
+    return {
+      total,
+      adminsNumber,
+      verifiedUsersNumber,
+      unverifiedUsersNumber,
+      active,
+      inactive,
+      banned,
+      premium,
+      oauthUsers,
     };
   }
 

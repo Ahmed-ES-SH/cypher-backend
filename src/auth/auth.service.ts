@@ -23,6 +23,7 @@ import { SendResetPasswordDto } from './dto/send-reset-password.dto';
 import { BlackList } from './schema/blacklist-tokens.schema';
 import { LogoutDto } from './dto/logout.dto';
 import { UserRoleEnum } from './types/UserRoleEnum';
+import { EmailNotVerifiedException } from './exceptions/email-not-verified.exception';
 
 // JWT expiry in hours — used to set blacklist token TTL
 const JWT_EXPIRY_HOURS = 24;
@@ -60,7 +61,7 @@ export class AuthService {
 
     if (!user.isEmailVerified) {
       await this.sendVerificationEmail(user);
-      throw new ForbiddenException('You need to verify your email first');
+      throw new EmailNotVerifiedException();
     }
 
     const payload = { id: user.id, email: user.email, role: user.role };

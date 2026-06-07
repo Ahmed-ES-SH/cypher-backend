@@ -134,6 +134,52 @@ export class BlogService {
     return { message: 'Article deleted successfully' };
   }
 
+  /**
+   * Get blog statistics for admin dashboard
+   */
+  async getStats(): Promise<{
+    total: number;
+    published: number;
+    drafts: number;
+    totalViews: number;
+    averageViews: number;
+    averageReadTime: number;
+    totalCategories: number;
+  }> {
+    const total = await this.articleRepo.count();
+    const published = await this.articleRepo.count({
+      where: { isPublished: true },
+    });
+    const drafts = total - published;
+
+    const viewsResult = await this.articleRepo
+      .createQueryBuilder('article')
+      .select('SUM(article.viewsCount)', 'total')
+      .addSelect('AVG(article.viewsCount)', 'average')
+      .getRawOne();
+
+    const readTimeResult = await this.articleRepo
+      .createQueryBuilder('article')
+      .select('AVG(article.readTimeMinutes)', 'average')
+      .getRawOne();
+
+    const categoryResult = await this.articleRepo
+      .createQueryBuilder('article')
+      .select('COUNT(DISTINCT article.categoryId)', 'count')
+      .where('article.categoryId IS NOT NULL')
+      .getRawOne();
+
+    return {
+      total,
+      published,
+      drafts,
+      totalViews: parseInt(viewsResult?.total ?? '0', 10) || 0,
+      averageViews: parseFloat(viewsResult?.average ?? '0') || 0,
+      averageReadTime: parseFloat(readTimeResult?.average ?? '0') || 0,
+      totalCategories: parseInt(categoryResult?.count ?? '0', 10) || 0,
+    };
+  }
+
   async findPublished(query: FindPublishedArticlesQueryDto): Promise<{
     data: Partial<Article>[];
     meta: { page: number; limit: number; total: number; totalPages: number };

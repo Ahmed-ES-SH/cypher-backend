@@ -5,7 +5,8 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import Stripe from 'stripe';
 import { createHash } from 'crypto';
@@ -71,6 +72,8 @@ export class PaymentsService {
     private readonly notificationsGateway: NotificationsGateway,
     private readonly orderService: OrderService,
     private readonly cartService: CartService,
+    @InjectRepository(Payment)
+    private readonly paymentRepo: Repository<Payment>,
   ) {}
 
   async createPaymentIntent(
@@ -341,12 +344,14 @@ export class PaymentsService {
     userId: string,
     page: number = 1,
     limit: number = 20,
+    status?: string,
   ): Promise<PaymentHistoryResponse> {
     const skip = (page - 1) * limit;
     const [data, total] = await this.paymentsRepository.findByUser(
       userId,
       skip,
       limit,
+      status,
     );
 
     return {
@@ -355,6 +360,57 @@ export class PaymentsService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Get payment statistics for admin dashboard
+   */
+  async getStats(): Promise<{
+    total: number;
+    byStatus: Record<string, number>;
+    totalSucceeded: number;
+    totalRefunded: number;
+    netRevenue: number;
+    averageAmount: number;
+  }> {
+    const total = await this.paymentRepo.count();
+
+    const statusCounts = await Promise.all(
+      Object.values(PaymentStatus).map(async (status) => ({
+        status,
+        count: await this.paymentRepo.count({ where: { status } }),
+      })),
+    );
+
+    const byStatus: Record<string, number> = {};
+    for (const { status, count } of statusCounts) {
+      byStatus[status] = count;
+    }
+
+    const succeededResult = await this.paymentRepo
+      .createQueryBuilder('payment')
+      .select('SUM(payment.amount)', 'total')
+      .addSelect('AVG(payment.amount)', 'average')
+      .where('payment.status = :status', { status: PaymentStatus.SUCCEEDED })
+      .getRawOne();
+
+    const refundedResult = await this.paymentRepo
+      .createQueryBuilder('payment')
+      .select('SUM(payment.amount)', 'total')
+      .where('payment.status = :status', { status: PaymentStatus.REFUNDED })
+      .getRawOne();
+
+    const totalSucceeded = parseInt(succeededResult?.total ?? '0', 10) || 0;
+    const totalRefunded = parseInt(refundedResult?.total ?? '0', 10) || 0;
+
+    return {
+      total,
+      byStatus,
+      totalSucceeded,
+      totalRefunded,
+      netRevenue: totalSucceeded - totalRefunded,
+      averageAmount: parseFloat(succeededResult?.average ?? '0') || 0,
     };
   }
 

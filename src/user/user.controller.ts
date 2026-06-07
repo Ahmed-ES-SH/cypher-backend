@@ -109,9 +109,15 @@ export class UserController {
     description: 'Admin role required',
   })
   stats(): Promise<{
+    total: number;
     adminsNumber: number;
     verifiedUsersNumber: number;
     unverifiedUsersNumber: number;
+    active: number;
+    inactive: number;
+    banned: number;
+    premium: number;
+    oauthUsers: number;
   }> {
     return this.userService.stats();
   }

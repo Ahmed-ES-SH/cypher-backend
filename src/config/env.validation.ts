@@ -93,6 +93,12 @@ export const validationSchema = Joi.object({
    */
   JWT_EXPIRES_IN: Joi.string().default('7d'),
 
+  /**
+   * Auth cookie name for httpOnly cookie
+   * Default: cypher_auth_token
+   */
+  AUTH_TOKEN: Joi.string().default('cypher_auth_token'),
+
   // ===================
   // TMDB API
   // ===================

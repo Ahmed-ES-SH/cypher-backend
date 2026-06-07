@@ -21,6 +21,12 @@ export enum ProductSortField {
   stock = 'stock',
 }
 
+export enum AvailabilityStatus {
+  IN_STOCK = 'In Stock',
+  OUT_OF_STOCK = 'Out of Stock',
+  LOW_STOCK = 'Low Stock',
+}
+
 export class FilterProductsQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -93,6 +99,22 @@ export class FilterProductsQueryDto {
   inStockOnly?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  @ApiPropertyOptional({
+    description: 'Filter by publish status (true=published, false=drafts)',
+  })
+  isPublished?: boolean;
+
+  @IsOptional()
+  @IsEnum(AvailabilityStatus)
+  @ApiPropertyOptional({
+    description: 'Filter by availability status',
+    enum: AvailabilityStatus,
+  })
+  availabilityStatus?: AvailabilityStatus;
+
+  @IsOptional()
   @IsEnum(ProductSortField)
   @ApiPropertyOptional({
     description: 'Sort by field',
@@ -100,6 +122,67 @@ export class FilterProductsQueryDto {
     default: ProductSortField.createdAt,
   })
   sortBy?: ProductSortField = ProductSortField.createdAt;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    description: 'Filter by brand (exact match, case-insensitive)',
+  })
+  brand?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @ApiPropertyOptional({
+    description: 'Minimum discount percentage',
+    minimum: 0,
+    maximum: 100,
+  })
+  minDiscount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @ApiPropertyOptional({
+    description: 'Maximum discount percentage',
+    minimum: 0,
+    maximum: 100,
+  })
+  maxDiscount?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  @ApiPropertyOptional({
+    description:
+      'Only show products with an active discount (discountPercentage > 0)',
+  })
+  onSale?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @ApiPropertyOptional({ description: 'Minimum weight', minimum: 0 })
+  minWeight?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @ApiPropertyOptional({ description: 'Maximum weight', minimum: 0 })
+  maxWeight?: number;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    description: 'Filter by multiple category IDs (comma-separated UUIDs)',
+  })
+  categoryIds?: string;
 
   @IsOptional()
   @IsEnum(SortOrder)

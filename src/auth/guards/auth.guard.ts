@@ -25,7 +25,7 @@ export class AuthGuard implements CanActivate {
     private readonly configService: ConfigService,
   ) {
     this.cookieName =
-      this.configService.get<string>('AUTH_TOKEN') ?? 'sanad_auth_token';
+      this.configService.get<string>('AUTH_TOKEN') ?? 'cypher_auth_token';
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

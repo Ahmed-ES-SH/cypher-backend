@@ -36,7 +36,7 @@ export class AuthPublicController {
     private readonly configService: ConfigService,
   ) {
     this.cookieName =
-      this.configService.get<string>('AUTH_TOKEN') ?? 'sanad_auth_token';
+      this.configService.get<string>('AUTH_TOKEN') ?? 'cypher_auth_token';
     this.frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
     this.isProduction =
@@ -50,14 +50,27 @@ export class AuthPublicController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } }) // 5 attempts per 15 minutes
-  normalLogin(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async normalLogin(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+
+    res.cookie(this.cookieName, result.access_token, {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: 'strict',
+      maxAge: 5 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    return result;
   }
 
   /**
    * Verifies user email via a unique token.
    */
-  @Post('verify-email')
+  @Get('verify-email')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } }) // 5 attempts per 15 minutes
   verifyEmail(@Query('token') token: string) {

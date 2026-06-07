@@ -65,6 +65,21 @@ export class BlogController {
     return this.blogService.remove(id);
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get blog statistics' })
+  @ApiResponse({ status: 200, description: 'Blog statistics' })
+  async getStats(): Promise<{
+    total: number;
+    published: number;
+    drafts: number;
+    totalViews: number;
+    averageViews: number;
+    averageReadTime: number;
+    totalCategories: number;
+  }> {
+    return this.blogService.getStats();
+  }
+
   @Get()
   @ApiOperation({ summary: 'List all articles with pagination and filtering' })
   @ApiResponse({ status: 200, description: 'Paginated list of articles' })

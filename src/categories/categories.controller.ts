@@ -68,6 +68,18 @@ export class CategoriesController {
     return this.categoriesService.getAll(filters);
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get category statistics' })
+  @ApiResponse({ status: 200, description: 'Category statistics' })
+  async getStats(): Promise<{
+    total: number;
+    totalProducts: number;
+    totalArticles: number;
+    emptyCategories: number;
+  }> {
+    return this.categoriesService.getStats();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a category by ID' })
   @ApiResponse({

@@ -67,6 +67,23 @@ export class ProductsController {
     return this.productsService.getAll(filters);
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get product statistics' })
+  @ApiResponse({ status: 200, description: 'Product statistics' })
+  async getStats(): Promise<{
+    total: number;
+    published: number;
+    drafts: number;
+    inStock: number;
+    outOfStock: number;
+    lowStock: number;
+    totalInventory: number;
+    averagePrice: number;
+    totalCategories: number;
+  }> {
+    return this.productsService.getStats();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a product by ID' })
   @ApiResponse({

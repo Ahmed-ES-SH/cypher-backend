@@ -43,9 +43,14 @@ export class PaymentsRepository {
     userId: string,
     skip: number,
     take: number,
+    status?: string,
   ): Promise<[Payment[], number]> {
+    const where: Record<string, unknown> = { userId };
+    if (status) {
+      where.status = status;
+    }
     return this.getRepo().findAndCount({
-      where: { userId },
+      where,
       order: { createdAt: 'DESC' },
       skip,
       take,
