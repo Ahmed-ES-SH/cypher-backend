@@ -15,7 +15,7 @@ export class Cart {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid', name: 'user_id', unique: true })
+  @Column({ type: 'int', name: 'user_id', unique: true })
   userId: string;
 
   @OneToMany(() => CartItem, (item) => item.cart, { cascade: true })

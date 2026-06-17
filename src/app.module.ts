@@ -25,7 +25,6 @@ import { MAIL_OPTIONS } from './config/mail.config';
 import { MailModule } from './mail/mail.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { CACHE_OPTIONS } from './config/cache.config';
-import { AuthGuard } from './auth/guards/auth.guard';
 import { JwtModule } from '@nestjs/jwt';
 import { validationSchema } from './config/env.validation';
 
@@ -90,11 +89,7 @@ const JWT_OPTIONS = {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
-    // auth guard for check the blacklist tokens
-    {
-      provide: APP_GUARD,
-      useClass: AuthGuard,
-    },
+
   ],
 })
 export class AppModule {}

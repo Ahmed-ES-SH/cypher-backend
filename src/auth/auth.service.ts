@@ -3,7 +3,6 @@ import * as crypto from 'crypto';
 
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   Logger,
   RequestTimeoutException,
@@ -55,7 +54,12 @@ export class AuthService {
 
     if (!user) throw new BadRequestException('Invalid email or password');
 
-    const isPasswordValid = await argon2.verify(user.password!, dto.password);
+    if (!user.password)
+      throw new BadRequestException(
+        'This account uses Google sign-in. Please log in with Google.',
+      );
+
+    const isPasswordValid = await argon2.verify(user.password, dto.password);
     if (!isPasswordValid)
       throw new BadRequestException('Invalid email or password');
 

@@ -21,7 +21,7 @@ export class CheckoutSessionState {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid', name: 'user_id', unique: true })
+  @Column({ type: 'int', name: 'user_id', unique: true })
   userId: string;
 
   @Column({ type: 'varchar', length: 255, name: 'cart_hash' })

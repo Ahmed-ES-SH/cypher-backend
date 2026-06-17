@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 import { Request } from 'express';
 import { AuthService } from '../auth.service';
@@ -13,6 +15,7 @@ import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { RequestWithUser } from '../types/request.interface';
 import { UserRoleEnum } from '../types/UserRoleEnum';
+import { User } from '../../user/schema/user.entity';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -21,6 +24,8 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly authService: AuthService,
     private readonly jwtService: JwtService,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     private reflector: Reflector,
     private readonly configService: ConfigService,
   ) {
@@ -54,7 +59,13 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('This token has been revoked');
       }
 
-      request.user = decodedToken;
+      const user = await this.userRepo.findOne({ where: { id: decodedToken.id } });
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      request.user = user;
 
       return true;
     } catch (error) {

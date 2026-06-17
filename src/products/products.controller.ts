@@ -25,12 +25,11 @@ import { FilterProductsQueryDto } from './dto/filter-products-query.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { Roles } from '../auth/decorators/Roles.decorator';
 import { UserRoleEnum } from '../auth/types/UserRoleEnum';
-import { AuthGuard } from '../auth/guards/auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 
 @ApiTags('Admin - Products')
 @ApiBearerAuth()
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Roles(UserRoleEnum.ADMIN)
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('admin/products')

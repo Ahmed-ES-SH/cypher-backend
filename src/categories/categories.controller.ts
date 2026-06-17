@@ -26,12 +26,11 @@ import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
 import { CategoryResponseDto } from './dto/category-response.dto';
 import { Roles } from '../auth/decorators/Roles.decorator';
 import { UserRoleEnum } from '../auth/types/UserRoleEnum';
-import { AuthGuard } from '../auth/guards/auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 
 @ApiTags('Admin - Categories')
 @ApiBearerAuth()
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Roles(UserRoleEnum.ADMIN)
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('admin/categories')

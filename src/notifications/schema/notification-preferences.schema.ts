@@ -13,7 +13,7 @@ export class NotificationPreferences {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid', name: 'user_id', unique: true })
+  @Column({ type: 'int', name: 'user_id', unique: true })
   userId: string;
 
   @Column({ type: 'boolean', default: true, name: 'order_notifications' })
