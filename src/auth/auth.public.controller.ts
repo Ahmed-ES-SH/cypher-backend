@@ -22,6 +22,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AuthGuard } from '@nestjs/passport';
 import type { RequestWithUser } from './types/request.interface';
 import type { Response } from 'express';
+import { UserService } from '../user/user.service';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -33,6 +34,7 @@ export class AuthPublicController {
 
   constructor(
     private readonly authService: AuthService,
+    private readonly userService: UserService,
     private readonly configService: ConfigService,
   ) {
     this.cookieName =
@@ -73,8 +75,9 @@ export class AuthPublicController {
   @Get('verify-email')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } }) // 5 attempts per 15 minutes
-  verifyEmail(@Query('token') token: string) {
-    return this.authService.verifyEmail(token);
+  verifyEmail(@Query('token') token: string, @Query('email') email: string) {
+    // Same canonical impl as POST /user/verify-email — single source of truth
+    return this.userService.verifyEmail({ token, email });
   }
 
   /**

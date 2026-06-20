@@ -49,7 +49,16 @@ export class AuthService {
   ): Promise<{ user: Omit<User, 'password'>; access_token: string }> {
     const user = await this.userRepo.findOne({
       where: { email: dto.email },
-      select: ['id', 'email', 'role', 'password', 'isEmailVerified', 'avatar'],
+      select: [
+        'id',
+        'email',
+        'role',
+        'password',
+        'isEmailVerified',
+        'avatar',
+        'emailVerificationLastSentAt',
+        'emailVerificationTokenExpiry',
+      ],
     });
 
     if (!user) throw new BadRequestException('Invalid email or password');
@@ -64,7 +73,7 @@ export class AuthService {
       throw new BadRequestException('Invalid email or password');
 
     if (!user.isEmailVerified) {
-      await this.sendVerificationEmail(user);
+      await this.maybeResendVerificationEmail(user);
       throw new EmailNotVerifiedException();
     }
 
@@ -194,30 +203,10 @@ export class AuthService {
   }
 
   // MARK: Email verification
-
-  async verifyEmail(token: string): Promise<{ message: string }> {
-    if (!token) throw new BadRequestException('The token is required');
-
-    const user = await this.userRepo.findOne({
-      where: { emailVerificationToken: token },
-    });
-
-    if (!user) {
-      throw new BadRequestException('Invalid or expired token');
-    }
-
-    if (user.isEmailVerified) {
-      throw new BadRequestException('The user is already verified');
-    }
-
-    user.isEmailVerified = true;
-    user.emailVerificationToken = null;
-    user.emailVerificationTokenExpiry = null;
-
-    await this.userRepo.save(user);
-
-    return { message: 'Email verified successfully' };
-  }
+  //
+  // Verification logic lives in UserService.verifyEmail — it's the canonical
+  // implementation. AuthService only handles the email-sending side
+  // (registration resend + login-time resend with debounce).
 
   // MARK: Google OAuth
 
@@ -268,14 +257,15 @@ export class AuthService {
 
   private async addVerificationToken(
     userId: number,
-    token: string,
+    hashedToken: string,
   ): Promise<void> {
     const expiry = new Date();
     expiry.setHours(expiry.getHours() + 1);
 
     await this.userRepo.update(userId, {
-      emailVerificationToken: token,
+      emailVerificationToken: hashedToken,
       emailVerificationTokenExpiry: expiry,
+      emailVerificationLastSentAt: new Date(),
       isEmailVerified: false,
     });
   }
@@ -293,7 +283,8 @@ export class AuthService {
   private async sendVerificationEmail(user: User): Promise<void> {
     try {
       const token = await this.mailService.sendVerificationEmail(user);
-      await this.addVerificationToken(user.id, token);
+      const hashedToken = await argon2.hash(token);
+      await this.addVerificationToken(user.id, hashedToken);
     } catch (error) {
       this.logger.error(
         'Verification email failed',
@@ -301,6 +292,31 @@ export class AuthService {
       );
       throw new RequestTimeoutException();
     }
+  }
+
+  /**
+   * Sends a fresh verification email — but only if the most recent send was
+   * more than RESEND_DEBOUNCE_MS ago (or the previous token has expired).
+   * Prevents email flooding when an unverified user retries login rapidly.
+   */
+  private async maybeResendVerificationEmail(user: User): Promise<void> {
+    const RESEND_DEBOUNCE_MS = 5 * 60 * 1000; // 5 minutes
+    const now = new Date();
+    const lastSent = user.emailVerificationLastSentAt;
+    const expiry = user.emailVerificationTokenExpiry;
+
+    const recentlySent =
+      lastSent !== null &&
+      lastSent !== undefined &&
+      now.getTime() - lastSent.getTime() < RESEND_DEBOUNCE_MS;
+    const tokenStillValid =
+      expiry !== null && expiry !== undefined && expiry > now;
+
+    if (recentlySent && tokenStillValid) {
+      return;
+    }
+
+    await this.sendVerificationEmail(user);
   }
 
   private generateToken(): string {

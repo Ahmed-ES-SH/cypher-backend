@@ -42,14 +42,7 @@ export class UserService {
 
     try {
       const token = await this.mailService.sendVerificationEmail(savedUser);
-
-      const expiry = new Date();
-      expiry.setHours(expiry.getHours() + 1);
-
-      await this.userRepo.update(savedUser.id, {
-        emailVerificationToken: token,
-        emailVerificationTokenExpiry: expiry,
-      });
+      await this.persistHashedVerificationToken(savedUser.id, token);
     } catch (error) {
       this.logger.error(
         'Verification email failed after registration',
@@ -198,26 +191,63 @@ export class UserService {
     return this.userRepo.findOne({ where: { email } });
   }
 
-  async verifyEmail(token: string): Promise<User> {
-    const user = await this.userRepo.findOne({
-      where: { emailVerificationToken: token },
-    });
+  async verifyEmail({
+    token,
+    email,
+  }: {
+    token: string;
+    email: string;
+  }): Promise<User> {
+    if (!token || !email) {
+      throw new BadRequestException('Token and email are required');
+    }
 
-    if (!user) {
-      throw new NotFoundException('Invalid verification token');
+    const user = await this.userRepo.findOne({ where: { email } });
+
+    if (!user || !user.emailVerificationToken) {
+      throw new BadRequestException('Invalid or expired verification link');
+    }
+
+    if (user.isEmailVerified) {
+      throw new BadRequestException('The user is already verified');
     }
 
     if (
       user.emailVerificationTokenExpiry &&
       user.emailVerificationTokenExpiry < new Date()
     ) {
-      throw new BadRequestException('Verification token has expired');
+      throw new BadRequestException(
+        'Verification link has expired. Please request a new one.',
+      );
+    }
+
+    const isValid = await argon2.verify(user.emailVerificationToken, token);
+    if (!isValid) {
+      throw new BadRequestException('Invalid verification link');
     }
 
     user.isEmailVerified = true;
     user.emailVerificationToken = null;
     user.emailVerificationTokenExpiry = null;
+    user.emailVerificationLastSentAt = null;
 
     return this.userRepo.save(user);
+  }
+
+  // MARK: Private helpers
+
+  private async persistHashedVerificationToken(
+    userId: number,
+    plainToken: string,
+  ): Promise<void> {
+    const hashedToken = await argon2.hash(plainToken);
+    const expiry = new Date();
+    expiry.setHours(expiry.getHours() + 1);
+
+    await this.userRepo.update(userId, {
+      emailVerificationToken: hashedToken,
+      emailVerificationTokenExpiry: expiry,
+      emailVerificationLastSentAt: new Date(),
+    });
   }
 }

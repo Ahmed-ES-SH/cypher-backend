@@ -59,7 +59,9 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('This token has been revoked');
       }
 
-      const user = await this.userRepo.findOne({ where: { id: decodedToken.id } });
+      const user = await this.userRepo.findOne({
+        where: { id: decodedToken.id },
+      });
 
       if (!user) {
         throw new UnauthorizedException('User not found');

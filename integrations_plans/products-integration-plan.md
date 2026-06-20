@@ -39,7 +39,7 @@
 | Method | Path | Description | Auth | Request Body | Success Response | Error Codes |
 |--------|------|-------------|------|-------------|------------------|-------------|
 | `GET` | `/products` | List published products | None | _query params_ | [`PaginatedProducts`](#paginatedproducts) | — |
-| `GET` | `/products/:slug` | Get product by slug | None | _none_ | [`Product`](#product) | `404` |
+| `GET` | `/products/:id` | Get product by ID (UUID) | None | _none_ | [`Product`](#product) | `400`, `404` |
 | `GET` | `/products/category/:categorySlug` | Products by category | None | _query params_ | [`PaginatedProducts`](#paginatedproducts) | `404` |
 
 ### 1.3 Query Parameters
@@ -348,8 +348,8 @@ export async function publicListProducts(
   return data;
 }
 
-export async function publicGetProductBySlug(slug: string): Promise<Product> {
-  const { data } = await api.get<Product>(`/products/${slug}`);
+export async function publicGetProductById(id: string): Promise<Product> {
+  const { data } = await api.get<Product>(`/products/${id}`);
   return data;
 }
 
@@ -1105,7 +1105,7 @@ frontend/
 │  PRODUCTS MODULE — QUICK REFERENCE                              │
 ├─────────────────────────────────────────────────────────────────┤
 │  Admin Base:  POST/PATCH/DELETE/GET /admin/products             │
-│  Public Base: GET /products, GET /products/:slug,               │
+│  Public Base: GET /products, GET /products/:id,                  │
 │               GET /products/category/:categorySlug              │
 │  Auth:        JWT + ADMIN role (admin), None (public)           │
 │  Pagination:  ?page=1&limit=10&sortBy=createdAt&sortOrder=DESC │

@@ -51,14 +51,6 @@ export class ProductsService {
     return result;
   }
 
-  private async findOneBySlugOrFail(slug: string): Promise<Product> {
-    const product = await this.productRepository.findOne({ where: { slug } });
-    if (!product) {
-      throw new NotFoundException(`Product with slug "${slug}" not found`);
-    }
-    return product;
-  }
-
   /** Validate that a category exists (if categoryId provided) */
   private async validateCategory(
     categoryId: string | undefined,
@@ -371,7 +363,7 @@ export class ProductsService {
   }
 
   /**
-   * Get product by ID
+   * Get product by ID (used by both admin and public endpoints)
    */
   async getById(id: string): Promise<Product> {
     const result = await this.productRepository.findOne({
@@ -380,20 +372,6 @@ export class ProductsService {
     });
     if (!result) {
       throw new NotFoundException(`Product with ID "${id}" not found`);
-    }
-    return result;
-  }
-
-  /**
-   * Get product by slug
-   */
-  async getBySlug(slug: string): Promise<Product> {
-    const result = await this.productRepository.findOne({
-      where: { slug },
-      relations: ['category'],
-    });
-    if (!result) {
-      throw new NotFoundException(`Product with slug "${slug}" not found`);
     }
     return result;
   }

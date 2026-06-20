@@ -16,7 +16,7 @@ export class MailService {
   async sendVerificationEmail(user: User): Promise<string> {
     const token = this.generateToken();
     const frontUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
-    const verifyUrl = `${frontUrl}/verify-email?token=${token}`;
+    const verifyUrl = `${frontUrl}/verify-email?token=${token}&email=${encodeURIComponent(user.email)}`;
 
     try {
       await this.mailerService.sendMail({

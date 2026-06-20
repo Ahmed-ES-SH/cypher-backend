@@ -3,6 +3,7 @@ import {
   Get,
   Param,
   Query,
+  ParseUUIDPipe,
   UseInterceptors,
   ClassSerializerInterceptor,
 } from '@nestjs/common';
@@ -63,16 +64,19 @@ export class ProductsPublicController {
     return this.productsService.getPublicCatalog(filters);
   }
 
-  @Get(':slug')
-  @ApiOperation({ summary: 'Get a product by slug (public)' })
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a product by ID (public)' })
   @ApiResponse({
     status: 200,
     description: 'Product found',
     type: ProductResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Invalid product ID format' })
   @ApiResponse({ status: 404, description: 'Product not found' })
-  async findOne(@Param('slug') slug: string): Promise<ProductResponseDto> {
-    return this.productsService.getBySlug(slug);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ProductResponseDto> {
+    return this.productsService.getById(id);
   }
 
   @Get('category/:categorySlug')

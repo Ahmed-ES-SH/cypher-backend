@@ -89,7 +89,6 @@ const JWT_OPTIONS = {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
-
   ],
 })
 export class AppModule {}

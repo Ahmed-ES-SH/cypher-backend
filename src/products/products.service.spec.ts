@@ -291,26 +291,6 @@ describe('ProductsService', () => {
     });
   });
 
-  // ── getBySlug ─────────────────────────────────────────────────
-
-  describe('getBySlug', () => {
-    it('should return a product by slug', async () => {
-      productRepo.findOne.mockResolvedValueOnce(mockProduct);
-
-      const result = await service.getBySlug('test-product');
-
-      expect(result).toEqual(mockProduct);
-    });
-
-    it('should throw NotFoundException if slug not found', async () => {
-      productRepo.findOne.mockResolvedValueOnce(null);
-
-      await expect(service.getBySlug('nonexistent')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-  });
-
   // ── update ────────────────────────────────────────────────────
 
   describe('update', () => {

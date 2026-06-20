@@ -69,7 +69,7 @@ export class UserController {
     description: 'Verification token has expired',
   })
   verifyEmail(@Body() verifyEmailDto: VerifyEmailDto): Promise<User> {
-    return this.userService.verifyEmail(verifyEmailDto.token);
+    return this.userService.verifyEmail(verifyEmailDto);
   }
 
   @ApiBearerAuth()
